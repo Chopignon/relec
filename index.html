@@ -177,6 +177,8 @@ a{color:var(--jaune)}
 .zone__resultat{margin-top:18px;padding:18px 20px;border-radius:12px;background:var(--noir-2);border:1px solid #2a2a31;font-size:17px;min-height:64px}
 .zone__resultat strong{color:var(--jaune)}
 .zone__resultat.hors strong{color:var(--orange)}
+.legende-carte{display:flex;gap:18px;justify-content:center;margin:0 0 8px;font-size:14px;font-weight:700;color:var(--texte-clair)}
+.legende-carte i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .zone__note{font-size:13px;color:#8d8d97;margin:10px 0 0}
 @media (max-width:960px){.zone{grid-template-columns:1fr}}
 
@@ -384,7 +386,7 @@ a{color:var(--jaune)}
         <p class="zone__resultat" id="resultat-zone" aria-live="polite"></p>
         <p class="zone__note">Distance à vol d’oiseau, donnée à titre indicatif. En limite de zone, un coup de fil suffit.</p>
       </div>
-      <div class="carte-zone"><svg id="carte" viewBox="0 0 400 400" role="img" aria-label="Carte de la zone d’intervention de 50 km autour de Buironfosse"></svg></div>
+      <div class="carte-zone"><p class="legende-carte"><span><i style="background:#FFC20E"></i>Buironfosse</span><span><i style="background:#3ddc6a"></i>Votre commune</span></p><svg id="carte" viewBox="0 0 400 400" role="img" aria-label="Carte de la zone d’intervention de 50 km autour de Buironfosse"></svg></div>
     </div>
   </div>
 </section>
@@ -474,22 +476,30 @@ function dessinerCarte(choisie) {
   s += '<circle cx="200" cy="200" r="150" fill="url(#halo)" stroke="#FFC20E" stroke-width="2" stroke-dasharray="6 6"/>';
   s += '<circle cx="200" cy="200" r="75" fill="none" stroke="#FFC20E" stroke-opacity=".3" stroke-dasharray="3 6"/>';
   s += '<text x="200" y="44" text-anchor="middle" fill="#FFC20E" font-size="13" font-weight="700" font-family="Montserrat,sans-serif">50 km</text>';
+  const petit = document.getElementById('carte').getBoundingClientRect().width < 420;
+  const taille = petit ? 17 : 12;
+  const etiquettes = {'Hirson':[12,5,'start'],'Saint-Quentin':[-4,petit ? 26 : 20,'start'],'Laon':[0,-14,'middle'],'Maubeuge':[0,-14,'middle']};
+  const textes = [];
   communes.forEach(c => {
     const [x, y] = projeter(c);
     if (x < 6 || x > 394 || y < 6 || y > 394) return;
     const actif = choisie && c.nom === choisie.nom;
     const dedans = c.distance <= RAYON;
-    s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${actif ? 8 : (c === centre ? 7 : 4)}" fill="${c === centre ? '#FFC20E' : (actif ? (dedans ? '#3ddc6a' : '#F07D1A') : '#fff')}" stroke="#0B0B0D" stroke-width="2"/>`;
-    const petit = document.getElementById('carte').getBoundingClientRect().width < 420;
-    const etiquettes = petit ? {'Buironfosse':[-10,24,'end'],'Hirson':[12,20,'start'],'Saint-Quentin':[0,-14,'middle'],'Laon':[0,-14,'middle'],'Maubeuge':[0,-14,'middle']}
-      : {'Buironfosse':[-10,20,'end'],'La Capelle':[10,-10,'start'],'Hirson':[10,16,'start'],'Guise':[-10,4,'end'],'Vervins':[0,20,'middle'],'Fourmies':[10,-8,'start'],'Saint-Quentin':[0,-12,'middle'],'Laon':[0,-12,'middle'],'Maubeuge':[0,-12,'middle']};
-    const taille = petit ? 17 : 12;
-    const e = etiquettes[c.nom] || [0,-14,'middle'];
-    if (actif || etiquettes[c.nom]) {
-      const fin = (actif && !etiquettes[c.nom]) ? [0,-14, x > 300 ? 'end' : (x < 100 ? 'start' : 'middle')] : e;
-      s += `<text x="${(x + fin[0]).toFixed(1)}" y="${(y + fin[1]).toFixed(1)}" text-anchor="${fin[2]}" fill="${actif ? '#fff' : '#C9C9D1'}" font-size="${actif ? taille + 3 : taille}" font-weight="${actif ? 800 : 600}" font-family="Montserrat,sans-serif" paint-order="stroke" stroke="#0B0B0D" stroke-width="3">${c.nom.replace(' (Belgique)', '')}</text>`;
+    if (c !== centre && !actif && c.distance < 14) return; // centre de la carte allégé
+    s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${actif ? 8 : (c === centre ? 8 : 4)}" fill="${c === centre ? '#FFC20E' : (actif ? (dedans ? '#3ddc6a' : '#F07D1A') : '#fff')}" stroke="#0B0B0D" stroke-width="2"/>`;
+    if (actif && c !== centre) {
+      const nom = c.nom.replace(' (Belgique)', '').split('-en-')[0];
+      const t = taille + 2, w = nom.length * t * 0.6 + 16, h = t + 12;
+      let bx = x - w / 2, by = y - 16 - h;
+      if (by < 4) by = y + 14;
+      bx = Math.max(4, Math.min(396 - w, bx));
+      textes.push(`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${w.toFixed(1)}" height="${h}" rx="${h / 2}" fill="${dedans ? '#3ddc6a' : '#F07D1A'}"/><text x="${(bx + w / 2).toFixed(1)}" y="${(by + h / 2 + t * 0.36).toFixed(1)}" text-anchor="middle" fill="#0B0B0D" font-size="${t}" font-weight="800" font-family="Montserrat,sans-serif">${nom}</text>`);
+    } else if (etiquettes[c.nom] && !(choisie && choisie.distance < 14)) {
+      const e = etiquettes[c.nom];
+      textes.push(`<text x="${(x + e[0]).toFixed(1)}" y="${(y + e[1]).toFixed(1)}" text-anchor="${e[2]}" fill="#C9C9D1" font-size="${taille}" font-weight="600" font-family="Montserrat,sans-serif" paint-order="stroke" stroke="#0B0B0D" stroke-width="5">${c.nom}</text>`);
     }
   });
+  s += textes.join('');
   svg.innerHTML = s;
 }
 const choixZone = document.getElementById('commune-zone');
